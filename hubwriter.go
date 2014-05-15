@@ -19,25 +19,29 @@ import (
 
 // HubWriter represents the array of io.WriteClosers to write to.
 type HubWriter struct {
-	hub []io.WriteCloser
+	hub []*io.WriteCloser
 }
 
 // New returns a new HubWriter
 func New() *HubWriter {
-	return &HubWriter{hub: []io.WriteCloser{}}
+	return &HubWriter{hub: []*io.WriteCloser{}}
 }
 
 // Write writes len(b) bytes to the HubWriter. It currently suppresses all errors and returns the length of b, not length of what was writen.
 // If there is an error writing to an io.Writer in the hub, that io.Writer is Closed and removed.
 func (hw *HubWriter) Write(b []byte) (int, error) {
-	nhub := []io.WriteCloser{}
+	nhub := []*io.WriteCloser{}
 	n := len(b)
 
-	for i := range hw.hub {
-		nn, e := hw.hub[i].Write(b)
+	for _, h := range hw.hub {
+		if h==nil {
+			continue
+		}
+		nn, e := (*h).Write(b)
 		if !(e != nil || nn != n) {
-			nhub = append(nhub, hw.hub[i])
-			hw.hub[i].Close()
+			nhub = append(nhub, h)
+		} else {
+			(*h).Close()
 		}
 	}
 	
@@ -48,22 +52,22 @@ func (hw *HubWriter) Write(b []byte) (int, error) {
 // Close closes all io.WriteClosers in the hub.
 func (hw *HubWriter) Close() error {
 	var e error
-	for i := range hw.hub {
-		e = hw.hub[i].Close()
+	for _, h := range hw.hub {
+		e = (*h).Close()
 	}
 	return e
 }
 
 // Subscribe adds an io.WriteCloser to the hub.
 func (hw *HubWriter) Subscribe(s io.WriteCloser) {
-	hw.hub = append(hw.hub, s)
+	hw.hub = append(hw.hub, &s)
 }
 
 // Unsubscribe removes an io.WriteCloser from the hub.
 func (hw *HubWriter) Unsubscribe(s io.WriteCloser) {
-	nhub := []io.WriteCloser{}
+	nhub := []*io.WriteCloser{}
 	for i := range hw.hub {
-		if hw.hub[i] != s {
+		if hw.hub[i] != &s {
 			nhub = append(nhub, hw.hub[i])
 		}
 	}
